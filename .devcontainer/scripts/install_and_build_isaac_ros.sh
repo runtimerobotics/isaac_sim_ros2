@@ -11,8 +11,17 @@ readonly jazzy_ws="${isaac_ros}/jazzy_ws"
 readonly lab_ref="${ISAACLAB_REF:?ISAACLAB_REF is required}"
 readonly ros_ref="${ISAACSIM_ROS_REF:?ISAACSIM_ROS_REF is required}"
 
+source_setup() {
+  # Generated ROS/ament setup scripts read optional tracing variables that may
+  # be unset in a clean Docker build environment.  Keep nounset for this build
+  # script, but not while evaluating those generated scripts.
+  set +u
+  source "$1"
+  set -u
+}
+
 mkdir -p "${reports}"
-source /opt/ros/jazzy/setup.bash
+source_setup /opt/ros/jazzy/setup.bash
 test "${ROS_DISTRO}" = jazzy
 python3 --version | tee "${reports}/python_version.txt"
 python3 -c 'import sys; assert sys.version_info[:2] == (3, 12), sys.version'
@@ -42,7 +51,18 @@ test "${package_count}" -gt 0
 # First check makes missing rosdep keys visible in the build log. The second is
 # mandatory and proves rosdep resolved every package.xml dependency.
 if ! rosdep check --from-paths src --ignore-src --rosdistro jazzy 2>&1 | tee "${reports}/rosdep_check_before.log"; then
-  rosdep install --from-paths src --ignore-src --rosdistro jazzy -r -y 2>&1 | tee "${reports}/rosdep_install.log"
+  # The dependency-image layer clears APT indexes to keep the image small.
+  # rosdep invokes apt-get itself, so refresh its package metadata first.
+  mkdir -p /var/lib/apt/lists/partial
+  apt-get update
+  PIP_BREAK_SYSTEM_PACKAGES=1 rosdep install --from-paths src --ignore-src --rosdistro jazzy -r -y 2>&1 \
+    | tee "${reports}/rosdep_install.log"
+  # rosdep's pip dependencies can replace setuptools and remove pkg_resources,
+  # which is required by Ubuntu's /usr/bin/rosdep entry point.  Restore the
+  # distro-provided module before the mandatory post-install rosdep check.
+  apt-get install --reinstall -y python3-pkg-resources
+  /usr/bin/python3 -c 'import pkg_resources'
+  rm -rf /var/lib/apt/lists/*
 fi
 rosdep check --from-paths src --ignore-src --rosdistro jazzy 2>&1 | tee "${reports}/rosdep_check_after.log"
 
@@ -51,8 +71,8 @@ colcon build --symlink-install --event-handlers console_direct+ 2>&1 | tee "${re
 test -f install/setup.bash
 test -f install/local_setup.bash
 
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
+source_setup /opt/ros/jazzy/setup.bash
+source_setup install/setup.bash
 while IFS= read -r package; do
   ros2 pkg prefix "${package}" >> "${reports}/isaac_ros_package_prefixes.txt"
 done < "${reports}/isaac_ros_package_names.txt"
