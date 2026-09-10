@@ -1,0 +1,43 @@
+{
+  "name": "Isaac Sim 6.0.1 + Isaac Lab + ROS 2 Jazzy",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "ISAACLAB_REF": "v3.0.0-beta2.patch1",
+      "ISAACSIM_ROS_REF": "IsaacSim-6.0.1"
+    }
+  },
+  "remoteUser": "root",
+  "workspaceFolder": "/workspace/ros2_ws",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/ros2_ws,type=bind,consistency=cached",
+  "runArgs": [
+    "--gpus", "all",
+    "--network", "host",
+    "--ipc", "host",
+    "--env", "DISPLAY=${localEnv:DISPLAY}",
+    "--volume", "/tmp/.X11-unix:/tmp/.X11-unix:rw"
+  ],
+  "containerEnv": {
+    "ROS_DISTRO": "jazzy",
+    "RMW_IMPLEMENTATION": "rmw_fastrtps_cpp",
+    "ROS_DOMAIN_ID": "${localEnv:ROS_DOMAIN_ID:0}",
+    "ISAACSIM_PATH": "/isaac-sim",
+    "ISAACSIM_PYTHON_EXE": "/isaac-sim/python.sh"
+  },
+  "mounts": [
+    "source=isaac-sim-kit-cache,target=/root/.cache/ov,type=volume",
+    "source=isaac-sim-kit-data,target=/root/.local/share/ov,type=volume"
+  ],
+  "postCreateCommand": "bash -lc 'mkdir -p /workspace/ros2_ws/src && test -f /workspace/IsaacSim-ros_workspaces/jazzy_ws/install/setup.bash && test -L /workspace/IsaacLab/_isaac_sim'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-docker",
+        "ms-iot.vscode-ros",
+        "ms-python.python",
+        "ms-vscode.cpptools"
+      ]
+    }
+  }
+}
